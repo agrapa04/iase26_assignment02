@@ -34,7 +34,7 @@ object JsonLoader {
     fun loadJsonFromNetwork(
         fetcher: UrlFetcher = { url ->
             val conn = URI(url).toURL().openConnection() as HttpURLConnection
-            //CODEFIX :  Reduce timeuts to allow faster failure in case of network issues.
+            //CODEFIX :  Reduce timeouts to allow faster failure in case of network issues.
             //200 ms connect timeout is usually enough to detect a down server; 500 ms read timeout allows for some network latency but fails faster than the default (which can be minutes).
             conn.connectTimeout = 200
             conn.readTimeout = 500
