@@ -57,6 +57,7 @@ object StandingsService {
                 compareByDescending<TableEntry> { it.points }
                     .thenByDescending { it.goalDiff }
                     .thenByDescending { it.goalsFor }
+                    .thenBy { it.team.name }// Tie-breaker for teams with identical points, goal difference, and goals scored: alphabetical order of team name.
             )
     }
 }

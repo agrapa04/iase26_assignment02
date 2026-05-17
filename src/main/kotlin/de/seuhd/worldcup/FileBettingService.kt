@@ -9,13 +9,17 @@ import java.io.File
  */
 class FileBettingService(private val file: File) {
 
-    fun placeBet(bet: Bet) {
+    private val lock = Any() // For synchronizing access to the file
+
+    fun placeBet(bet: Bet) = synchronized(lock) {
         val bets = readBets()
         bets[bet.matchId] = bet
         writeBets(bets.values)
-    }
+    }//synchronized
 
-    fun getBets(): List<Bet> = readBets().values.toList()
+    fun getBets(): List<Bet> = synchronized(lock) {
+        readBets().values.toList()
+    }//synchronized
 
     private fun readBets(): MutableMap<Int, Bet> {
         if (!file.exists()) return mutableMapOf()
