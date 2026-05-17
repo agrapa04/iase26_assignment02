@@ -1,6 +1,6 @@
 # Flaky Test Report
 
-**Name:** Grapa, Adrienne
+**Name:** Grapa, Adrienne and Baig, Mirza Mohammad Faiq
 
 ## Flaky Test 1 FileBettingServiceTest
 
@@ -55,20 +55,31 @@ Before each test (with `@BeforeEach`), it should be ensured that the file is cle
 **Test name:** `evaluate returns zero when no bets are placed`
 
 **Root cause:**
+Shared state corrupting across test execution boundaries. The `BettingService` class had a mutable `cachedResult` state. While there did exist a `clear()` method to reset the service between tests, it lacked the logic to reset this specific property. As a result, if a test populated `cachedResult`, that stale data would then leak into other test runs. When `evaluate returns zero when no bets are placed()` ran after a test that cached a non-zero result, it would incorrectly return the cached value of zero instead.
 
 
 **Fix:**
+in object BettingService
+
+     fun clear() {
+             //CODEFIX : clear() was not resseting the cached result,
+             // which could lead to stale results after clearing the bets.
+             // Reset cachedResult to null to ensure that evaluate() will recompute the result based on the now-empty bets.
+             bets.clear()
+             cachedResult = null
+         }
+
+`clear()` is updated to explicitly reset `cachedResult = null` which ensures a clean run for every test execution and completely eliminates any leakage of data from previous runs into the next ones.
 
 ## Flaky Test 4 WorldCupTest
 
 **Test name:** `standings are stable when multiple teams tie on all criteria`
 
-**Root cause:** this test calls calculate() which originally sorts the tied teams in a certain order based on points, goalDiff and goalsFor, which are non deterministic if all team tie on all criteria. This test is missing a deterministic tiebreaker criteria to ensure a stable ordering and a valide test.
+**Root cause:** this test calls `calculate()` which originally sorts the tied teams in a certain order based on points, goalDiff and goalsFor, which are non deterministic if all team tie on all criteria. This test is missing a deterministic tiebreaker criteria to ensure a stable ordering and a valide test.
 
 
 **Fix:**
-in object StandingsService
-in fun calculate()
+in object StandingsService, in fun calculate()
 
 before :
 
@@ -97,6 +108,33 @@ we add `.thenBy{it.team.name}` to order the teams by alphabetical order if multi
 **Test name:** `load json from network`
 
 **Root cause:**
+A network latency combined with an aggressive test timeout. The `JsonLoader.kt` shuffles a long list of target URLs, which due to the shuffle, the execution path becomes non-deterministic.
 
+**Pass Condition:** 
+Loader would  pick a live URL, succeeding instantly
+
+**Fail Condition:** 
+Loader picks a dead IP first, which due to the `connectTimeout` being set to a default of a high value of 3000ms, system would block waiting for the connection. This 3-second delay breaks the strict 300ms `@Timeout` window defined on the test for `WorldCupTest.kt`, which kills the test before the failover mechancism could attempt the next URL.
 
 **Fix:**
+in WorldCupTest.kt, in class WorldCupTest
+
+     @Test
+    //CODEFIX: Increased timeout to 5000ms to accommodate network latency and multiple mirror attempts.
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS)
+
+The timeout was increased to accomodate to network latency and multiple mirror attempts.
+
+in JsonLoader.kt, in object JsonLoader
+
+     fun loadJsonFromNetwork(
+        fetcher: UrlFetcher = { url ->
+            val conn = URI(url).toURL().openConnection() as HttpURLConnection
+            //CODEFIX :  Reduce timeouts to allow faster failure in case of network issues.
+            //200 ms connect timeout is usually enough to detect a down server; 500 ms read timeout allows for some network latency but fails faster than the default (which can be minutes).
+            conn.connectTimeout = 200
+            conn.readTimeout = 500
+            conn.inputStream
+        }
+
+The timeouts were reduced to allow a faster test failure in case of network issues. In other words this handles the network unreliability properly instead of hiding it.
