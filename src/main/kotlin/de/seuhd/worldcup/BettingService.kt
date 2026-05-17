@@ -116,6 +116,10 @@ object BettingService {
 
     /** Drop all stored bets. */
     fun clear() {
+        //CODEFIX : clear() was not resseting the cached result,
+        // which could lead to stale results after clearing the bets.
+        // Reset cachedResult to null to ensure that evaluate() will recompute the result based on the now-empty bets.
         bets.clear()
+        cachedResult = null
     }
 }
